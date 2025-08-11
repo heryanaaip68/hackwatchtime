@@ -3,15 +3,16 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>YouTube Multi-Frame Player with API Duration</title>
+<title>YouTube Multi-Frame Player</title>
 <style>
   body { font-family: Arial, sans-serif; background: #f0f0f0; margin: 0; padding: 0; text-align: center; }
   #inputArea { max-width: 600px; margin: 15px auto; display: flex; flex-direction: column; gap: 8px; }
   textarea { width: 100%; min-height: 100px; padding: 8px; }
-  button { padding: 10px; font-size: 14px; border: none; background: #cc0000; color: white; cursor: pointer; border-radius: 5px; }
-  button:hover { background: #e60000; }
+  .btn { padding: 10px; font-size: 14px; border: none; background: #cc0000; color: white; cursor: pointer; border-radius: 5px; margin: 3px; }
+  .btn:hover { background: #e60000; }
   #playerGrid { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); padding: 10px; max-width: 1000px; margin: auto; }
   iframe { width: 100%; aspect-ratio: 16/9; background: black; }
+  #status { margin-top: 10px; font-weight: bold; }
 </style>
 </head>
 <body>
@@ -21,9 +22,10 @@
 <div id="inputArea">
   <textarea id="urls" placeholder="Masukkan maksimal 10 URL YouTube, satu per baris"></textarea>
   <div>
-    <button onclick="startPlayers()">Play All</button>
-    <button onclick="nextBatch()">Next</button>
+    <button class="btn" onclick="startPlayers()">▶ Play All</button>
+    <button class="btn" onclick="nextBatch()">⏭ Next</button>
   </div>
+  <div id="status">Status: Menunggu input...</div>
 </div>
 
 <div id="playerGrid"></div>
@@ -36,8 +38,9 @@ let players = [];
 let urls = [];
 let videoDurations = [];
 let currentIndex = 0;
-let batchPlaying = [];
+let activeIndexes = [];
 let timerNext = null;
+let batchNumber = 0;
 
 function onYouTubeIframeAPIReady() {
   console.log("YouTube IFrame API Ready");
@@ -83,29 +86,17 @@ async function startPlayers() {
   let videoIds = urls.map(extractVideoId).filter(Boolean);
 
   // Ambil durasi dari API
-  let durationMap = await fetchDurations(videoIds);
-  videoDurations = videoIds.map(id => durationMap[id] || 0);
+  try {
+    let durationMap = await fetchDurations(videoIds);
+    videoDurations = videoIds.map(id => durationMap[id] || 0);
+  } catch (err) {
+    alert("Gagal mengambil durasi video. Periksa API Key atau koneksi internet.");
+    return;
+  }
 
-  // Reset player grid
-  document.getElementById("playerGrid").innerHTML = "";
-  players = [];
   currentIndex = 0;
-
-  urls.forEach((url, i) => {
-    let div = document.createElement("div");
-    div.id = "player" + i;
-    document.getElementById("playerGrid").appendChild(div);
-
-    let videoId = extractVideoId(url);
-    if (videoId) {
-      players[i] = new YT.Player(div.id, {
-        videoId: videoId,
-        playerVars: { modestbranding: 1, rel: 0, playsinline: 1 }
-      });
-    }
-  });
-
-  setTimeout(nextBatch, 1000);
+  batchNumber = 0;
+  nextBatch(); // mulai batch pertama
 }
 
 function nextBatch() {
@@ -114,19 +105,36 @@ function nextBatch() {
     timerNext = null;
   }
 
-  // Pause semua
-  players.forEach(p => { if (p && p.pauseVideo) p.pauseVideo(); });
+  if (currentIndex >= urls.length) {
+    document.getElementById("status").innerText = "Status: Semua video sudah diputar.";
+    document.getElementById("playerGrid").innerHTML = "";
+    return;
+  }
 
-  // Pilih batch baru 2 atau 3 video
-  batchPlaying = [];
-  let batchSize = Math.floor(Math.random() * 2) + 2;
+  // Hapus semua frame lama
+  document.getElementById("playerGrid").innerHTML = "";
+  players = [];
+  activeIndexes = [];
+  batchNumber++;
 
+  let batchSize = Math.floor(Math.random() * 2) + 2; // 2-3 video
   let maxDuration = 0;
+
   for (let i = 0; i < batchSize && currentIndex < urls.length; i++) {
     let idx = currentIndex++;
-    if (players[idx]) {
-      players[idx].playVideo();
-      batchPlaying.push(idx);
+    activeIndexes.push(idx);
+
+    let div = document.createElement("div");
+    div.id = "player" + idx;
+    document.getElementById("playerGrid").appendChild(div);
+
+    let videoId = extractVideoId(urls[idx]);
+    if (videoId) {
+      players[idx] = new YT.Player(div.id, {
+        videoId: videoId,
+        playerVars: { modestbranding: 1, rel: 0, playsinline: 1 },
+        events: { onReady: onPlayerReady }
+      });
 
       if (videoDurations[idx] > maxDuration) {
         maxDuration = videoDurations[idx];
@@ -134,11 +142,23 @@ function nextBatch() {
     }
   }
 
+  // Update status batch
+  document.getElementById("status").innerText =
+    `Status: Memutar Batch ${batchNumber} (${batchSize} video), durasi terlama ${maxDuration} detik.`;
+
   // Jadwalkan batch berikutnya otomatis
   if (maxDuration > 0) {
     timerNext = setTimeout(() => {
       if (currentIndex < urls.length) nextBatch();
     }, maxDuration * 1000);
+  }
+}
+
+function onPlayerReady(event) {
+  // Putar otomatis kalau player masuk batch aktif
+  let idx = players.indexOf(event.target);
+  if (activeIndexes.includes(idx)) {
+    event.target.playVideo();
   }
 }
 </script>
