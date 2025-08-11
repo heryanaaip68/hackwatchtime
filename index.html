@@ -1,5 +1,38 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>YouTube Multi-Frame Player</title>
+<style>
+  body { font-family: Arial, sans-serif; background: #f0f0f0; margin: 0; padding: 0; text-align: center; }
+  #inputArea { max-width: 600px; margin: 15px auto; display: flex; flex-direction: column; gap: 8px; }
+  textarea { width: 100%; min-height: 100px; padding: 8px; }
+  .btn { padding: 10px; font-size: 14px; border: none; background: #cc0000; color: white; cursor: pointer; border-radius: 5px; margin: 3px; }
+  .btn:hover { background: #e60000; }
+  #playerGrid { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); padding: 10px; max-width: 1000px; margin: auto; }
+  iframe { width: 100%; aspect-ratio: 16/9; background: black; }
+  #status { margin-top: 10px; font-weight: bold; }
+</style>
+</head>
+<body>
+
+<h1>Multi-Frame YouTube Player</h1>
+
+<div id="inputArea">
+  <textarea id="urls" placeholder="Masukkan maksimal 10 URL YouTube, satu per baris"></textarea>
+  <div>
+    <button class="btn" onclick="startPlayers()">▶ Play All</button>
+    <button class="btn" onclick="nextBatch()">⏭ Next</button>
+  </div>
+  <div id="status">Status: Menunggu input...</div>
+</div>
+
+<div id="playerGrid"></div>
+
+<script src="https://www.youtube.com/iframe_api"></script>
 <script>
-const YOUTUBE_API_KEY = "MASUKKAN_API_KEY_ANDA_DI_SINI";
+const YOUTUBE_API_KEY = "AIzaSyB3qnP-jtxCmwNHtB4NzmryIlHO_XySKns";
 
 let players = [];
 let urls = [];
@@ -8,8 +41,6 @@ let currentIndex = 0;
 let activeIndexes = [];
 let timerNext = null;
 let batchNumber = 0;
-let readyCount = 0;
-let batchSize = 0;
 
 function onYouTubeIframeAPIReady() {
   console.log("YouTube IFrame API Ready");
@@ -84,10 +115,9 @@ function nextBatch() {
   document.getElementById("playerGrid").innerHTML = "";
   players = [];
   activeIndexes = [];
-  readyCount = 0;
   batchNumber++;
 
-  batchSize = Math.floor(Math.random() * 2) + 2; // 2-3 video
+  let batchSize = Math.floor(Math.random() * 2) + 2; // 2-3 video
   let maxDuration = 0;
 
   for (let i = 0; i < batchSize && currentIndex < urls.length; i++) {
@@ -125,16 +155,13 @@ function nextBatch() {
 }
 
 function onPlayerReady(event) {
-  readyCount++;
-  if (readyCount === batchSize) {
-    // Semua player batch siap → autoplay semuanya
-    setTimeout(() => {
-      activeIndexes.forEach(idx => {
-        if (players[idx]) {
-          players[idx].playVideo();
-        }
-      });
-    }, 500); // delay 0.5 detik biar iframe siap play
+  // Putar otomatis kalau player masuk batch aktif
+  let idx = players.indexOf(event.target);
+  if (activeIndexes.includes(idx)) {
+    event.target.playVideo();
   }
 }
 </script>
+
+</body>
+</html>
